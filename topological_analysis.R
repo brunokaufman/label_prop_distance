@@ -79,5 +79,56 @@ agg.plot.loglog(df_dist[interesting,4], df_dist[interesting,3], xname=lapname[4]
 dev.off()
 
 #Ahora calculo los módulos de alguna forma.
-modulos = cluster_optimal(gph) #Lo hago optimal como en el paper de Guimera (2005).
+#No puedo usar cluster_optimal() Guimera (2005) porque CRAN ya no supportea GLPK.
+modules = cluster_label_prop(gph) #Uso label propagation como es la familia de algoritmos que despues vamos a usar para recomendar.
+horizontal_member_mat = as.array(rep(1, length(V(gph)))) %o% modules$membership #La matriz tiene las memberships en direccion horizontal y las repite en cada fila.
+comembership_mat = as.matrix(horizontal_member_mat == t(horizontal_member_mat)) #Si lo comparo con su transpuesta hago una matriz donde la componente (i,j) me dice si i y j pertenecen al mismo modulo.
+comembership_mat[which(comembership_mat)] = 1 #Paso los booleanos a valores numericos.
+comembership_mat[which(!comembership_mat)] = 0
 
+#Calculo las cantidades que usa Guimera (2005) de forma matricial.
+adyacencia = as.matrix(as_adjacency_matrix(gph))
+k_i = rowSums(adyacencia * comembership_mat) #El k_i es el grado del nodo i dentro de su mismo modulo.
+k_medio_si = (comembership_mat %*% k_i) / rowSums(comembership_mat) #Calculo la media del k_i para el modulo al cual pertenece cada nodo.
+k_var_si = (comembership_mat %*% ((k_i - k_medio_si) ** 2)) / rowSums(comembership_mat) #Lo mismo con la varianza.
+z_i = as.numeric((k_i - k_medio_si) / sqrt(k_var_si)) #Finalmente obtengo el z-score (que tan bien conectado esta a su modulo).
+z_i[which(is.nan(z_i))] = 0 #Los que tenian varianza cero por ser todos identicos los nodos en el cluster, les pongo cero z-score.
+
+#Ploteo distribuciones de z-score.
+png('z_score_positivos.png')
+hist.plot.loglog(z_i[which(z_i > 0)], varname='Magnitud de z-score positivo')
+dev.off()
+
+png('z_score_negativos.png')
+hist.plot.loglog(abs(z_i[which(z_i < 0)]), varname='Magnitud de z-score negativo')
+dev.off()
+
+#Ahora planteo una matriz que mapee del nodo i al modulo m.
+modu_map = matrix(nrow=length(unique(modules$membership)), ncol=length(V(gph)))
+modu_map[,] = 0 #Seteo default todo a cero.
+for(i in 1:length(V(gph))){
+    modu_map[modules$membership[i],i] = 1 #Senalo a que modulo pertenece el nodo i.
+}
+module_links = modu_map %*% adyacencia #Si mapeo la adyacencia por los modulos tengo la cantidad de links del nodo i a cada modulo.
+
+p_i = 1 - colSums(module_links ** 2) / (degree(gph) ** 2) #Calculo el p-score de Guimera (2005).
+png('p_score_nocero.png')
+hist(p_i[which(p_i > 0)], density=T, xlab='p-score')
+dev.off()
+
+#Ahora quiero calcular una matriz de distancias en el espacio p-z.
+#Diferencias unidimensionales
+z_distance_mat = outer(z_i, z_i, FUN='-')
+p_distance_mat = outer(p_i, p_i, FUN='-')
+
+#Ahora la distancia Euclideana en dos dimensiones.
+zp_distance_mat = sqrt(z_distance_mat ** 2 + unname(p_distance_mat) ** 2)
+
+i = 3
+x = as.numeric(abs(z_distance_mat))
+y = as.numeric(dist_list[[i]])
+nonzero = (x != 0 & y != 0)
+x = x[nonzero]
+y = y[nonzero]
+
+agg.plot.loglog(x, y)
