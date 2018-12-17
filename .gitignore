@@ -1,0 +1,7 @@
+#Directorios a ignorar
+/ap-ms/
+/y2h/
+
+#Terminaciones a ignorar
+*.png
+*.R~
