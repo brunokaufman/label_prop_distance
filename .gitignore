@@ -4,4 +4,4 @@
 
 #Terminaciones a ignorar
 *.png
-*.R~
+*~
