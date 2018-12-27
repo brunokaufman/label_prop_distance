@@ -1,22 +1,22 @@
 options(formatR.arrow=TRUE,width=90)
 library(igraph)
 library(poweRlaw)
-library(Biobase)
+#library(Biobase)
 
-nObjects = 100
-nUsers   = 100
+nObjects = 200
+nUsers   = 200
 
 #Distribucion de grado ley de potencia discreta para los usuarios.
 alpha = 2#Exponente.
 kmin  = 1#Grado minimo.
 
 #Clusters de usuarios.
-ngu = 3#Cantidad de grupos de usuarios.
-pin = 0.85#Probabilidad de que un link sea interno en un grupo.
+ngu = 4#Cantidad de grupos de usuarios.
+pin = 0.7#Probabilidad de que un link sea interno en un grupo.
 
 #Clusters de objetos.
-kShrinkMax   = 0.05#El tamano de un cluster de objetos = pin * sum(ku) * lShrink.
-kShrinkMin   = 0.05#kShrink es una variable aleatoria uniforme entre  kShrinkMin y kShrinkMax.
+kShrinkMax = 0.05#El tamano de un cluster de objetos = pin * sum(ku) * lShrink.
+kShrinkMin = 0.05#kShrink es una variable aleatoria uniforme entre  kShrinkMin y kShrinkMax.
 
 build.bipartite.graph = function(userCommunities=NULL, userDegrees=NULL, nUsers, nObjects, alpha, kmin, ngu, pin, kShrinkMin, kShrinkMax){
     if(!is.null(userCommunities)){
@@ -57,7 +57,7 @@ build.bipartite.graph = function(userCommunities=NULL, userDegrees=NULL, nUsers,
         #Dado un cluster de usuarios me fijo que grado total tiene y elijo ktot * pin objetos de un universo de overlapObjectClusters * n.
         objsIn = sample(1:nObjects, round(facShrink * pin * sum(ku[iu])))
         objsOut = (1:nObjects)
-        objsOut = objsOut[!objsOut % in % objsIn]
+        objsOut = objsOut[!objsOut %in% objsIn]
 
         prob=c(rep(pin/length(objsIn), length(objsIn)), rep((1-pin)/length(objsOut), length(objsOut)))
         for(j in seq_along(iu)){
@@ -117,10 +117,15 @@ projectBip = function(g, type=TRUE){
 
 set.seed(12347)
 
-a = buildBipartiteGraph(NULL, NULL, nObjects, nUsers, alpha, kmin, ngu, pin, kShrinkMin, kShrinkMax)
+a = build.bipartite.graph(NULL, NULL, nObjects, nUsers, alpha, kmin, ngu, pin, kShrinkMin, kShrinkMax)
 
 lcommunities = a$lcommunities
 g = a$graph
 
 gg = induced.subgraph(g, unique(as.vector(get.edgelist(g))))
+gg = delete.vertices(g, which(components(g)$membership != 1))
 
+gg_inc = as_incidence_matrix(gg)
+n_users = length(which(V(gg)$type))
+g_users = graph_from_adjacency_matrix(sign(t(gg_inc) %*% gg_inc) - diag(rep(1, n_users), n_users, n_users), mode='undirected')
+V(g_users)$color = V(gg)$color[which(V(gg)$type)]
