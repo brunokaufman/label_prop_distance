@@ -160,3 +160,22 @@ agg.plot(df_topo_auc$P.SC[valid_p], df_topo_auc[valid_p, 5], pch=3, col=colores[
 agg.plot(df_topo_auc$P.SC[valid_p], df_topo_auc[valid_p, 6], pch=4, col=colores[4], points=T)
 legend(0.1, -0.5, legend=lapname, pch=1:4, col=colores)
 dev.off()
+
+topo.eigen = function(lap){
+    eig = eigen(lap)
+    cols = unique(V(g_users)$color)
+    zmat = matrix(nrow = nrow(lap), ncol=length(cols))
+    pmat = matrix(nrow = nrow(lap), ncol=length(cols))
+    for(i in 1:ncol(lap)){
+        for(j in 1:length(unique(V(g_users)$color))){
+            zmat[i,j] = (eig$vector[,i] ** 2) %*% (z_i * as.numeric(V(g_users)$color == cols[j]))
+            pmat[i,j] = (eig$vector[,i] ** 2) %*% (p_i * as.numeric(V(g_users)$color == cols[j]))
+        }
+    }
+
+    df = cbind(data.frame(EIG.VALS=eig$values), data.frame(zmat), data.frame(pmat))
+    colnames(df)[2:length(colnames(df))] = c(paste('Z.', as.character(1:length(cols)), sep=''), paste('P.', as.character(1:length(cols)), sep=''))
+    return(df)
+}
+
+topo.eig.list = lapply(lap_list, FUN=topo.eigen)
